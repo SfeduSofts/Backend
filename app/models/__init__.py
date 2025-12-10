@@ -1,5 +1,5 @@
-from projects import Project
-from teams import Team
-from students import Student
+from .project import Project
+from .team import Team
+from .student import Student
 
 __all__ = ["Project", "Team", "Student"]
