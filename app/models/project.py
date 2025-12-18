@@ -11,10 +11,12 @@ class Project(Base):
     description = Column(Text, nullable=False)
     protected = Column(Boolean, default=False)
     type = Column(String(3), nullable=False)
-    protect_year = Column(String(4), nullable=False)
+    year = Column(String(4), nullable=False)
     photo_src = Column(String(255), nullable=True)
-    mentor_name = Column(String(100), nullable=False)
+    pdf_stc = Column(String(255), nullable=True)
+    mentor = Column(String(100), nullable=False)
     mentor_email = Column(String(255), nullable=False)
+    full_description = Column(Text, nullable=True)
 
     team = relationship("Team", back_populates="projects")
 
