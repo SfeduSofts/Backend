@@ -18,7 +18,7 @@ class Project(Base):
     mentor_email = Column(String(255), nullable=False)
     full_description = Column(Text, nullable=True)
 
-    team = relationship("Team", back_populates="projects")
+    teams = relationship("Team", back_populates="project")
 
     def __repr__(self):
-        return f"<Project(name={self.name}, protected={self.protected}, years={self.protect_year})>"
+        return f"<Project(name={self.name}, protected={self.protected}, years={self.year})>"

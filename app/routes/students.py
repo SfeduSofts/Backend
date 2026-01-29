@@ -6,7 +6,7 @@ from ..services.student_service import StudentService
 from ..schemas.student_schema import StudentCreate, StudentResponse
 
 router = APIRouter(
-    prefix="/api/v1/students",
+    prefix="",
     tags=["students"]
 )
 

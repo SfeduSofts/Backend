@@ -10,7 +10,8 @@ class Team(Base):
     name = Column(String(255), nullable=False)
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
 
-    projects = relationship("Project", back_populates="team")
+    project = relationship("Project", back_populates="teams")
+    students = relationship("Student", back_populates="team")
 
     def __repr__(self):
-        return f"<Team(name={self.name}>"
+        return f"<Team(name={self.name})>"

@@ -6,7 +6,7 @@ from ..services.project_service import ProjectService
 from ..schemas.project_schema import ProjectCreate, ProjectResponseFull, ProjectResponseShort
 
 router = APIRouter(
-    prefix="/api/v1/projects",
+    prefix="",
     tags=["projects"]
 )
 

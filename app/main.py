@@ -20,7 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory=settings.static_dir), name="static")
-
 app.include_router(project_router, prefix="/projects")
 app.include_router(student_router, prefix="/students")
+init_db()
