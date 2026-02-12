@@ -4,7 +4,10 @@ class Settings(BaseSettings):
     app_name: str = "Project List"
     database_url: str = "sqlite:///./test.db"
     debug: bool = True
-    cors_origins: list[str] = []
+    cors_origins: list[str] = [
+        "http://127.0.0.1:5500",
+        "127.0.0.1:5500",
+    ]
     static_dir: str = "static"
     image_dir: str = "static/images"
 

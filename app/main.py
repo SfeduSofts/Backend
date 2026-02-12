@@ -20,6 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(project_router, prefix="/projects")
-app.include_router(student_router, prefix="/students")
+app.include_router(project_router, prefix="/api/projects")
+app.include_router(student_router, prefix="/api/students")
 init_db()
