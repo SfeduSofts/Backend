@@ -21,6 +21,7 @@ class ProjectCreate(ProjectBase):
     full_description: Optional[str] = Field(None, max_length=1000)
 
 class ProjectResponseFull(ProjectBase):
+    id: int
     photo_src: Optional[str] = Field(None, max_length=255)
     teamNames: Optional[list[TeamName]] = Field(None)
     pdf_src: Optional[str] = Field(None, max_length=255)
@@ -29,4 +30,6 @@ class ProjectResponseFull(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
 
 class ProjectResponseShort(ProjectBase):
+    id: int
+    
     model_config = ConfigDict(from_attributes=True)
