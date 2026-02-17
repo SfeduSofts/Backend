@@ -15,18 +15,27 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     slug: str = Field(..., min_length=3, max_length=255)
     protected: bool = Field(default=False)
-    mentor_email: str = Field(..., max_length=255)
-    photo_src: Optional[str] = Field(None, max_length=255)
-    pdf_src: Optional[str] = Field(None, max_length=255)
     full_description: Optional[str] = Field(None, max_length=1000)
 
 class ProjectResponseFull(ProjectBase):
-    photo_src: Optional[str] = Field(None, max_length=255)
+    id: int
     teamNames: Optional[list[TeamName]] = Field(None)
-    pdf_src: Optional[str] = Field(None, max_length=255)
     full_description: Optional[str] = Field(None, max_length=1000)
     
     model_config = ConfigDict(from_attributes=True)
 
 class ProjectResponseShort(ProjectBase):
+    id: int
+
     model_config = ConfigDict(from_attributes=True)
+
+class ProjectUpdate(BaseModel):
+    id: int
+    name: Optional[str] = Field(None, min_length=3, max_length=255)
+    type: Optional[str] = Field(None, min_length=3, max_length=3)
+    year: Optional[int] = Field(None, ge=2016)
+    description: Optional[str] = Field(None, min_length=3, max_length=1000)
+    mentor: Optional[str] = Field(None, max_length=100)
+    full_description: Optional[str] = Field(None, max_length=1000)
+    protected: Optional[bool] = Field(None)
+    

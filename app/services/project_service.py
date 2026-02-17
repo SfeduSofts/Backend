@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.schemas.project_schema import ProjectResponseFull, ProjectResponseShort, ProjectCreate
+from app.schemas.project_schema import ProjectResponseFull, ProjectResponseShort, ProjectCreate, ProjectUpdate
 from app.repositories.project_repository import ProjectRepository
 from fastapi import HTTPException, status
 
@@ -26,3 +26,15 @@ class ProjectService:
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
         return ProjectResponseFull.model_validate(project)
+    
+    def update_project(self, project_id: int, project_data: ProjectUpdate) -> ProjectResponseFull:
+        project = self.project_repository.update_project(project_id, project_data)
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        return ProjectResponseFull.model_validate(project)
+    
+    def delete_project(self, project_id: int) -> None:
+        project = self.project_repository.get_by_id(project_id)
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        self.project_repository.delete_project(project_id)
