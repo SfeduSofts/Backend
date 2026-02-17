@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, Integer, ForeignKey
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -6,7 +6,7 @@ from ..database import Base
 class Team(Base):
     __tablename__ = "teams"
 
-    id = Column(String(36), primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
 
