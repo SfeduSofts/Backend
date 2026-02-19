@@ -21,6 +21,7 @@ class ProjectResponseFull(ProjectBase):
     id: int
     teamNames: Optional[list[TeamName]] = Field(None)
     full_description: Optional[str] = Field(None, max_length=1000)
+    protected: Optional[bool] = Field(None)
     
     model_config = ConfigDict(from_attributes=True)
 
