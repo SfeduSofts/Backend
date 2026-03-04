@@ -24,12 +24,6 @@ class ProjectService:
         project = self.project_repository.create_project(project_data)
         return ProjectResponseFull.model_validate(project)
     
-    def get_project_by_slug(self, slug: str) -> ProjectResponseFull:
-        project = self.project_repository.get_by_slug(slug)
-        if not project:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-        return ProjectResponseFull.model_validate(project)
-    
     def update_project(self, project_id: int, project_data: ProjectUpdate) -> ProjectResponseFull:
         project = self.project_repository.update_project(project_id, project_data)
         if not project:

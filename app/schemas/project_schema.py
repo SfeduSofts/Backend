@@ -13,7 +13,6 @@ class ProjectBase(BaseModel):
     
 
 class ProjectCreate(ProjectBase):
-    slug: str = Field(..., min_length=3, max_length=255)
     protected: bool = Field(default=False)
     full_description: Optional[str] = Field(None, max_length=1000)
 

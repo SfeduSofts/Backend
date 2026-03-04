@@ -16,9 +16,6 @@ class ProjectRepository:
 
     def get_by_id(self, project_id: int) -> Optional[Project]:
         return self.db.query(Project).filter(Project.id == project_id).first()
-    
-    def get_by_slug(self, slug: str) -> Optional[Project]:
-        return self.db.query(Project).filter(Project.slug == slug).first()
 
     def get_all(self) -> List[Project]:
         return self.db.query(Project).all()

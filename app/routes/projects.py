@@ -23,11 +23,6 @@ def get_project_by_id(project_id: str, db: Session = Depends(get_db)):
     service = ProjectService(db)
     return service.get_project_by_id(project_id)
 
-@router.get("/slug/{project_slug}", response_model=ProjectResponseFull, status_code=status.HTTP_200_OK)
-def get_project_by_slug(project_slug: str, db: Session = Depends(get_db)):
-    service = ProjectService(db)
-    return service.get_project_by_slug(project_slug)
-
 @router.post("", response_model=ProjectResponseFull, status_code=status.HTTP_201_CREATED)
 def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
     service = ProjectService(db)
