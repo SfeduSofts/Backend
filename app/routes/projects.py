@@ -50,7 +50,6 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
 # ------------------------------------------ФАЙЛЫ----------------------------------------------------------
 @router.put("/{project_id}/image", status_code=status.HTTP_200_OK)
 def upload_image(project_id: int, image: UploadFile, db: Session = Depends(get_db)):
-    print(f"Received file: {image.filename}, content type: {image.content_type}")
     service = ProjectService(db)
     return service.upload_image(project_id, image)
 

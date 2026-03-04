@@ -40,6 +40,8 @@ class ProjectService:
         project = self.project_repository.get_by_id(project_id)
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        self.delete_project_image(project_id)
+        self.delete_project_pdf(project_id)
         self.project_repository.delete_project(project_id)
 
     # -------------------------------------------ФАЙЛЫ----------------------------------------------------------
