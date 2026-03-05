@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.student_repository import StudentRepository
 from app.repositories.team_repository import TeamRepository
-from app.services.mp2_sheet_import import parse_mp2_sheet
+from app.services.mp2_sheet_import import (
+    DEFAULT_MP2_SHEET_URL,
+    PROJECT_TYPE_MP2,
+    parse_projects_sheet,
+)
 from app.schemas.project_schema import (
     ProjectCreate,
     ProjectResponseFull,
@@ -60,17 +64,29 @@ class ProjectService:
         self.project_repository.delete_project(project_id)
 
     def import_mp2_projects_from_sheet(self) -> dict:
+        result = self.import_projects_from_sheet(DEFAULT_MP2_SHEET_URL)
+        result["source"] = "google_sheet_mp2"
+        return result
+
+    def import_projects_from_sheet(self, sheet_url: str) -> dict:
         from app.services.team_service import TeamService
 
         try:
-            parsed = parse_mp2_sheet()
+            parsed = parse_projects_sheet(sheet_url)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid sheet URL: {error}",
+            ) from error
         except Exception as error:  # noqa: BLE001
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to load MP2 sheet: {error}",
+                detail=f"Failed to load sheet: {error}",
             ) from error
 
         parsed_projects = parsed.get("projects", [])
+        default_type = self._normalize_project_type(parsed.get("type"))
+        default_year = self._normalize_project_year(parsed.get("year"))
 
         existing_projects = self.project_repository.get_all()
         existing_by_name = {self._normalize_key(project.name): project for project in existing_projects}
@@ -95,9 +111,9 @@ class ProjectService:
                 created_project = self.project_repository.create_project(
                     ProjectCreate(
                         name=project_name[:255],
-                        type="МП2",
-                        year=int(item.get("year") or parsed.get("year") or 2025),
-                        description=str(item.get("description") or f"Проект МП2: {project_name}")[:1000],
+                        type=self._normalize_project_type(item.get("type"), default_type),
+                        year=self._normalize_project_year(item.get("year"), default_year),
+                        description=str(item.get("description") or f"Проект {default_type}: {project_name}")[:1000],
                         mentor=str(item.get("mentor") or "")[:100],
                         full_description=str(item.get("full_description") or project_name)[:1000],
                         protected=False,
@@ -121,7 +137,10 @@ class ProjectService:
                 errors.append({"project": project_name, "error": str(error)})
 
         return {
-            "source": "google_sheet_mp2",
+            "source": "google_sheet",
+            "sheet_url": parsed.get("source_url") or sheet_url,
+            "detected_type": default_type,
+            "detected_year": default_year,
             "parsed": len(parsed_projects),
             "created": created,
             "skipped_existing": skipped,
@@ -247,3 +266,20 @@ class ProjectService:
 
     def _normalize_key(self, value: str) -> str:
         return " ".join(str(value or "").strip().lower().split())
+
+    def _normalize_project_type(self, value, default: str = PROJECT_TYPE_MP2) -> str:
+        raw = str(value or "").strip().upper()
+        if raw in {"МП1", "MP1"} or raw.endswith("1"):
+            return "МП1"
+        if raw in {"МП2", "MP2"} or raw.endswith("2"):
+            return "МП2"
+        return default
+
+    def _normalize_project_year(self, value, default: int = 2025) -> int:
+        try:
+            year = int(value)
+        except (TypeError, ValueError):
+            return default
+        if year < 2016:
+            return default
+        return year

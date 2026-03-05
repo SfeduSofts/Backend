@@ -42,3 +42,7 @@ class ProjectUpdate(BaseModel):
 
 class TeamNamesUpdate(BaseModel):
     teamNames: list[str] = Field(default_factory=list)
+
+
+class ProjectSheetImportRequest(BaseModel):
+    url: str = Field(..., min_length=20, max_length=2000)

@@ -1,43 +1,64 @@
-import csv
+﻿import csv
 import io
 import re
 from datetime import datetime
 from typing import Any
-from urllib.request import urlopen
+from urllib.parse import parse_qs, urlsplit
+from urllib.request import Request, urlopen
 
 
-MP2_SHEET_CSV_URL = (
+PROJECT_TYPE_MP1 = "МП1"
+PROJECT_TYPE_MP2 = "МП2"
+
+DEFAULT_MP2_SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/"
-    "1R0BEkbBeJ9TB2UFpu33EuP_2w0WAN0xGAchzvzFG8EI/export"
-    "?format=csv&gid=1622739093"
+    "1R0BEkbBeJ9TB2UFpu33EuP_2w0WAN0xGAchzvzFG8EI/edit"
+    "?gid=1622739093#gid=1622739093"
 )
 
 
-def parse_mp2_sheet(url: str = MP2_SHEET_CSV_URL) -> dict[str, Any]:
-    rows = _load_csv_rows(url)
+def parse_projects_sheet(url: str = DEFAULT_MP2_SHEET_URL) -> dict[str, Any]:
+    csv_url = _build_csv_export_url(url)
+    rows = _load_csv_rows(csv_url)
     if not rows:
-        return {"projects": [], "year": datetime.now().year}
+        return {
+            "projects": [],
+            "year": datetime.now().year,
+            "type": PROJECT_TYPE_MP2,
+            "source_url": csv_url,
+            "header": "",
+        }
 
-    topic_row_index = _find_row_index(rows, "Тема")
+    header_text = _extract_header_text(rows)
+    detected_type = _detect_project_type(header_text)
+    import_year = _extract_start_year(rows, header_text)
+
+    topic_row_index = _find_row_index(rows, ("Тема", "Тема проекта", "Название проекта"))
     if topic_row_index is None:
-        return {"projects": [], "year": datetime.now().year}
+        return {
+            "projects": [],
+            "year": import_year,
+            "type": detected_type,
+            "source_url": csv_url,
+            "header": header_text,
+        }
 
-    teacher_row_index = _find_row_index(rows, "Наставник")
-    mentor_row_index = _find_row_index(rows, "Ментор")
-    team_header_rows = _find_all_row_indices(rows, "Название команды")
-    import_year = _extract_start_year(rows)
+    teacher_row_index = _find_row_index(
+        rows,
+        ("Наставник", "Преподаватель", "Руководитель", "Научный руководитель"),
+    )
+    mentor_row_index = _find_row_index(rows, ("Ментор",))
+    team_header_rows = _find_all_row_indices(rows, ("Название команды", "Команда"))
 
     max_cols = max((len(row) for row in rows), default=0)
     projects_by_key: dict[str, dict[str, Any]] = {}
 
     for col_index in range(1, max_cols):
-        project_name = _cell(rows, topic_row_index, col_index)
-        project_name = _normalize_spaces(project_name)
+        project_name = _normalize_spaces(_cell(rows, topic_row_index, col_index))
         if not _is_project_name_valid(project_name):
             continue
 
-        category = _cell(rows, max(topic_row_index - 1, 0), col_index)
-        category = _normalize_spaces(category)
+        category = _normalize_spaces(_cell(rows, max(topic_row_index - 1, 0), col_index))
         mentor = _pick_mentor(rows, teacher_row_index, mentor_row_index, col_index)
         teams = _collect_teams_for_column(rows, team_header_rows, col_index)
 
@@ -46,7 +67,7 @@ def parse_mp2_sheet(url: str = MP2_SHEET_CSV_URL) -> dict[str, Any]:
             projects_by_key[key] = {
                 "name": project_name,
                 "mentor": mentor,
-                "description": _build_short_description(project_name, category),
+                "description": _build_short_description(project_name, category, detected_type),
                 "full_description": _build_full_description(project_name, category),
                 "teams": {},
             }
@@ -85,16 +106,70 @@ def parse_mp2_sheet(url: str = MP2_SHEET_CSV_URL) -> dict[str, Any]:
                 "description": project["description"],
                 "full_description": project["full_description"],
                 "year": import_year,
-                "type": "МП2",
+                "type": detected_type,
                 "teams": teams_list,
             }
         )
 
-    return {"projects": projects, "year": import_year}
+    return {
+        "projects": projects,
+        "year": import_year,
+        "type": detected_type,
+        "source_url": csv_url,
+        "header": header_text,
+    }
+
+
+def parse_mp2_sheet(url: str = DEFAULT_MP2_SHEET_URL) -> dict[str, Any]:
+    return parse_projects_sheet(url)
+
+
+def _build_csv_export_url(url: str) -> str:
+    source_url = str(url or "").strip()
+    if not source_url:
+        source_url = DEFAULT_MP2_SHEET_URL
+
+    sheet_match = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", source_url)
+    if not sheet_match:
+        raise ValueError("Unsupported Google Sheets URL format")
+
+    sheet_id = sheet_match.group(1)
+    gid = _extract_gid(source_url)
+
+    export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    if gid is not None:
+        export_url += f"&gid={gid}"
+    return export_url
+
+
+def _extract_gid(url: str) -> int | None:
+    parts = urlsplit(url)
+    query = parse_qs(parts.query)
+    if "gid" in query and query["gid"]:
+        return _safe_gid(query["gid"][0])
+
+    fragment = parse_qs(parts.fragment)
+    if "gid" in fragment and fragment["gid"]:
+        return _safe_gid(fragment["gid"][0])
+
+    match = re.search(r"gid=(\d+)", url)
+    if match:
+        return _safe_gid(match.group(1))
+    return None
+
+
+def _safe_gid(value: str) -> int | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    if not raw.isdigit():
+        return None
+    return int(raw)
 
 
 def _load_csv_rows(url: str) -> list[list[str]]:
-    with urlopen(url, timeout=30) as response:
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urlopen(request, timeout=30) as response:
         payload = response.read()
 
     decoded = _decode_payload(payload)
@@ -117,7 +192,7 @@ def _decode_payload(payload: bytes) -> str:
 
 def _fix_mojibake(text: str) -> str:
     value = str(text or "").replace("\ufeff", "").replace("\r", "\n")
-    if "Ð" in value or "Ñ" in value or "Â" in value:
+    if "Гђ" in value or "Г‘" in value or "Г‚" in value:
         try:
             value = value.encode("latin1").decode("utf-8")
         except UnicodeError:
@@ -130,22 +205,67 @@ def _normalize_spaces(text: str) -> str:
 
 
 def _normalize_key(text: str) -> str:
-    return _normalize_spaces(text).lower()
+    return _normalize_spaces(text).replace("ё", "е").lower()
 
 
-def _find_row_index(rows: list[list[str]], label: str) -> int | None:
-    target = _normalize_key(label)
+def _normalize_label(text: str) -> str:
+    return _normalize_key(str(text or "").replace(":", ""))
+
+
+def _extract_header_text(rows: list[list[str]]) -> str:
+    header_parts: list[str] = []
+    for row in rows[:6]:
+        for cell in row[:8]:
+            value = _normalize_spaces(cell)
+            if value:
+                header_parts.append(value)
+    return _normalize_spaces(" ".join(header_parts))
+
+
+def _detect_project_type(header_text: str) -> str:
+    normalized = _normalize_key(header_text)
+
+    if re.search(r"\bперв\w*\s+междисциплинар\w*\s+проект\w*", normalized):
+        return PROJECT_TYPE_MP1
+    if re.search(r"\bвтор\w*\s+междисциплинар\w*\s+проект\w*", normalized):
+        return PROJECT_TYPE_MP2
+
+    if "мп1" in normalized or "mp1" in normalized:
+        return PROJECT_TYPE_MP1
+    if "мп2" in normalized or "mp2" in normalized:
+        return PROJECT_TYPE_MP2
+
+    if re.search(r"\bперв\w*\b", normalized):
+        return PROJECT_TYPE_MP1
+    if re.search(r"\bвтор\w*\b", normalized):
+        return PROJECT_TYPE_MP2
+
+    return PROJECT_TYPE_MP2
+
+
+def _find_row_index(rows: list[list[str]], labels: tuple[str, ...]) -> int | None:
+    target_labels = {_normalize_label(label) for label in labels}
+
     for index, row in enumerate(rows):
-        if _normalize_key(_cell(rows, index, 0)) == target:
-            return index
+        candidates = []
+        if row:
+            candidates.append(row[0])
+            candidates.extend(row[1:3])
+        for candidate in candidates:
+            if _normalize_label(candidate) in target_labels:
+                return index
     return None
 
 
-def _find_all_row_indices(rows: list[list[str]], label: str) -> list[int]:
-    target = _normalize_key(label)
+def _find_all_row_indices(rows: list[list[str]], labels: tuple[str, ...]) -> list[int]:
+    target_labels = {_normalize_label(label) for label in labels}
     result: list[int] = []
-    for index, _ in enumerate(rows):
-        if _normalize_key(_cell(rows, index, 0)) == target:
+    for index, row in enumerate(rows):
+        candidates = []
+        if row:
+            candidates.append(row[0])
+            candidates.extend(row[1:3])
+        if any(_normalize_label(candidate) in target_labels for candidate in candidates):
             result.append(index)
     return result
 
@@ -159,14 +279,24 @@ def _cell(rows: list[list[str]], row_index: int, col_index: int) -> str:
     return str(row[col_index] or "").strip()
 
 
-def _extract_start_year(rows: list[list[str]]) -> int:
-    probe = " ".join(" ".join(row[:3]) for row in rows[:3])
-    match = re.search(r"(20\d{2})", _fix_mojibake(probe))
-    if match:
-        year = int(match.group(1))
+def _extract_start_year(rows: list[list[str]], header_text: str) -> int:
+    header_year = _extract_first_year(header_text)
+    if header_year is not None:
+        return header_year
+
+    probe = " ".join(" ".join(row[:6]) for row in rows[:6])
+    probe_year = _extract_first_year(_fix_mojibake(probe))
+    if probe_year is not None:
+        return probe_year
+    return datetime.now().year
+
+
+def _extract_first_year(text: str) -> int | None:
+    years = [int(value) for value in re.findall(r"(20\d{2})", str(text or ""))]
+    for year in years:
         if 2016 <= year <= 2100:
             return year
-    return datetime.now().year
+    return None
 
 
 def _pick_mentor(
@@ -183,9 +313,10 @@ def _pick_mentor(
     return source[:100]
 
 
-def _build_short_description(project_name: str, category: str) -> str:
-    base = category if len(category) >= 3 else f"Проект МП2: {project_name}"
-    return base[:1000]
+def _build_short_description(project_name: str, category: str, project_type: str) -> str:
+    if len(category) >= 3:
+        return category[:1000]
+    return f"Проект {project_type}: {project_name}"[:1000]
 
 
 def _build_full_description(project_name: str, category: str) -> str:
@@ -228,7 +359,7 @@ def _collect_teams_for_column(
             if not raw_student:
                 continue
 
-            if label and not re.fullmatch(r"\d+", label):
+            if label and not re.fullmatch(r"(?:№|#)?\s*\d+\.?", label):
                 continue
 
             if not _looks_like_student(raw_student):

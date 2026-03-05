@@ -5,7 +5,13 @@ from fastapi import HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from ..database import get_db
 from ..services.project_service import ProjectService
-from ..schemas.project_schema import ProjectCreate, ProjectResponseFull, ProjectResponseShort, ProjectUpdate
+from ..schemas.project_schema import (
+    ProjectCreate,
+    ProjectResponseFull,
+    ProjectResponseShort,
+    ProjectSheetImportRequest,
+    ProjectUpdate,
+)
 
 router = APIRouter(
     prefix="",
@@ -22,6 +28,11 @@ def get_all_projects(db: Session = Depends(get_db)):
 def import_mp2_projects(db: Session = Depends(get_db)):
     service = ProjectService(db)
     return service.import_mp2_projects_from_sheet()
+
+@router.post("/import/sheet", status_code=status.HTTP_200_OK)
+def import_projects_from_sheet(payload: ProjectSheetImportRequest, db: Session = Depends(get_db)):
+    service = ProjectService(db)
+    return service.import_projects_from_sheet(payload.url)
 
 @router.get("/{project_id}", response_model=ProjectResponseFull, status_code=status.HTTP_200_OK)
 def get_project_by_id(project_id: int, db: Session = Depends(get_db)):
