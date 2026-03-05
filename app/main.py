@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routes import project_router, student_router
+from app.routes import project_router, student_router, team_router
 from app.database import init_db
 from .config import settings
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,4 +22,5 @@ app.add_middleware(
 
 app.include_router(project_router, prefix="/api/projects")
 app.include_router(student_router, prefix="/api/students")
+app.include_router(team_router, prefix="/api/teams")
 init_db()

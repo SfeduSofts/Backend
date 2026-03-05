@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 class TeamName(BaseModel):
-    name: str = Field(..., min_length=3, max_length=255)
+    name: str = Field(..., min_length=1, max_length=255)
 
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=3, max_length=255)
@@ -38,4 +38,7 @@ class ProjectUpdate(BaseModel):
     mentor: Optional[str] = Field(None, max_length=100)
     full_description: Optional[str] = Field(None, max_length=1000)
     protected: Optional[bool] = Field(None)
-    
+
+
+class TeamNamesUpdate(BaseModel):
+    teamNames: list[str] = Field(default_factory=list)

@@ -18,8 +18,13 @@ def get_all_projects(db: Session = Depends(get_db)):
     service = ProjectService(db)
     return service.get_all_projects()
 
+@router.post("/import/mp2", status_code=status.HTTP_200_OK)
+def import_mp2_projects(db: Session = Depends(get_db)):
+    service = ProjectService(db)
+    return service.import_mp2_projects_from_sheet()
+
 @router.get("/{project_id}", response_model=ProjectResponseFull, status_code=status.HTTP_200_OK)
-def get_project_by_id(project_id: str, db: Session = Depends(get_db)):
+def get_project_by_id(project_id: int, db: Session = Depends(get_db)):
     service = ProjectService(db)
     return service.get_project_by_id(project_id)
 
