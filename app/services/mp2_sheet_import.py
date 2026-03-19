@@ -305,12 +305,28 @@ def _pick_mentor(
     mentor_row_index: int | None,
     col_index: int,
 ) -> str:
-    teacher = _normalize_spaces(_cell(rows, teacher_row_index, col_index)) if teacher_row_index is not None else ""
-    mentor = _normalize_spaces(_cell(rows, mentor_row_index, col_index)) if mentor_row_index is not None else ""
+    teacher = _pick_merged_row_value(rows, teacher_row_index, col_index)
+    mentor = _pick_merged_row_value(rows, mentor_row_index, col_index)
     source = teacher or mentor
     source = re.sub(r"\b(Наставник ИУЭС|Наставник|Ментор)\s*:\s*", "", source, flags=re.IGNORECASE)
     source = _normalize_spaces(source)
     return source[:100]
+
+
+def _pick_merged_row_value(
+    rows: list[list[str]],
+    row_index: int | None,
+    col_index: int,
+) -> str:
+    if row_index is None:
+        return ""
+
+    for probe_col_index in range(col_index, 0, -1):
+        value = _normalize_spaces(_cell(rows, row_index, probe_col_index))
+        if value:
+            return value
+
+    return ""
 
 
 def _build_short_description(project_name: str, category: str, project_type: str) -> str:
