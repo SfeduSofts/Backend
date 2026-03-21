@@ -74,8 +74,18 @@ def get_project_image(project_id: int, db: Session = Depends(get_db)):
     service = ProjectService(db)
     return service.get_project_image(project_id)
 
+@router.head("/{project_id}/image", response_class=FileResponse, status_code=status.HTTP_200_OK)
+def head_project_image(project_id: int, db: Session = Depends(get_db)):
+    service = ProjectService(db)
+    return service.get_project_image(project_id)
+
 @router.get("/{project_id}/pdf", response_class=FileResponse, status_code=status.HTTP_200_OK)
 def get_project_pdf(project_id: int, db: Session = Depends(get_db)):
+    service = ProjectService(db)
+    return service.get_project_pdf(project_id)
+
+@router.head("/{project_id}/pdf", response_class=FileResponse, status_code=status.HTTP_200_OK)
+def head_project_pdf(project_id: int, db: Session = Depends(get_db)):
     service = ProjectService(db)
     return service.get_project_pdf(project_id)
 

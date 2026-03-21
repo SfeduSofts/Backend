@@ -49,6 +49,7 @@ def parse_projects_sheet(url: str = DEFAULT_MP2_SHEET_URL) -> dict[str, Any]:
     )
     mentor_row_index = _find_row_index(rows, ("Ментор",))
     team_header_rows = _find_all_row_indices(rows, ("Название команды", "Команда"))
+    pdf_row_index, image_row_index = _get_project_asset_row_indices(team_header_rows)
 
     max_cols = max((len(row) for row in rows), default=0)
     projects_by_key: dict[str, dict[str, Any]] = {}
@@ -60,6 +61,8 @@ def parse_projects_sheet(url: str = DEFAULT_MP2_SHEET_URL) -> dict[str, Any]:
 
         category = _normalize_spaces(_cell(rows, max(topic_row_index - 1, 0), col_index))
         mentor = _pick_mentor(rows, teacher_row_index, mentor_row_index, col_index)
+        pdf_url = _pick_project_asset_url(rows, pdf_row_index, col_index)
+        image_url = _pick_project_asset_url(rows, image_row_index, col_index)
         teams = _collect_teams_for_column(rows, team_header_rows, col_index)
 
         key = _normalize_key(project_name)
@@ -69,12 +72,18 @@ def parse_projects_sheet(url: str = DEFAULT_MP2_SHEET_URL) -> dict[str, Any]:
                 "mentor": mentor,
                 "description": _build_short_description(project_name, category, detected_type),
                 "full_description": _build_full_description(project_name, category),
+                "pdf_url": pdf_url,
+                "image_url": image_url,
                 "teams": {},
             }
 
         project_entry = projects_by_key[key]
         if not project_entry.get("mentor") and mentor:
             project_entry["mentor"] = mentor
+        if not project_entry.get("pdf_url") and pdf_url:
+            project_entry["pdf_url"] = pdf_url
+        if not project_entry.get("image_url") and image_url:
+            project_entry["image_url"] = image_url
 
         for team in teams:
             team_name = _normalize_spaces(team["name"])
@@ -105,6 +114,8 @@ def parse_projects_sheet(url: str = DEFAULT_MP2_SHEET_URL) -> dict[str, Any]:
                 "mentor": project["mentor"],
                 "description": project["description"],
                 "full_description": project["full_description"],
+                "pdf_url": project.get("pdf_url") or "",
+                "image_url": project.get("image_url") or "",
                 "year": import_year,
                 "type": detected_type,
                 "teams": teams_list,
@@ -297,6 +308,30 @@ def _extract_first_year(text: str) -> int | None:
         if 2016 <= year <= 2100:
             return year
     return None
+
+
+def _get_project_asset_row_indices(team_header_rows: list[int]) -> tuple[int | None, int | None]:
+    if not team_header_rows:
+        return None, None
+
+    first_team_header_row = team_header_rows[0]
+    pdf_row_index = first_team_header_row - 2 if first_team_header_row >= 2 else None
+    image_row_index = first_team_header_row - 1 if first_team_header_row >= 1 else None
+    return pdf_row_index, image_row_index
+
+
+def _pick_project_asset_url(
+    rows: list[list[str]],
+    row_index: int | None,
+    col_index: int,
+) -> str:
+    if row_index is None:
+        return ""
+
+    value = _normalize_spaces(_cell(rows, row_index, col_index))
+    if re.match(r"^https?://", value, flags=re.IGNORECASE):
+        return value
+    return ""
 
 
 def _pick_mentor(

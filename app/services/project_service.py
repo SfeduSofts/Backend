@@ -1,4 +1,7 @@
-﻿from pathlib import Path
+import re
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+from urllib.request import Request, urlopen
 
 from fastapi import HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -7,17 +10,17 @@ from sqlalchemy.orm import Session
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.student_repository import StudentRepository
 from app.repositories.team_repository import TeamRepository
-from app.services.mp2_sheet_import import (
-    DEFAULT_MP2_SHEET_URL,
-    PROJECT_TYPE_MP2,
-    parse_projects_sheet,
-)
 from app.schemas.project_schema import (
     ProjectCreate,
     ProjectResponseFull,
     ProjectResponseShort,
     ProjectUpdate,
     TeamName,
+)
+from app.services.mp2_sheet_import import (
+    DEFAULT_MP2_SHEET_URL,
+    PROJECT_TYPE_MP2,
+    parse_projects_sheet,
 )
 
 
@@ -121,7 +124,11 @@ class ProjectService:
                 )
 
                 teams = item.get("teams", [])
-                team_names = [str(team.get("name") or "").strip() for team in teams if str(team.get("name") or "").strip()]
+                team_names = [
+                    str(team.get("name") or "").strip()
+                    for team in teams
+                    if str(team.get("name") or "").strip()
+                ]
                 team_service.update_teams(created_project.id, team_names)
 
                 for team in teams:
@@ -130,6 +137,9 @@ class ProjectService:
                         continue
                     students = team.get("students", [])
                     team_service.update_team_students(team_name, students, project_id=created_project.id)
+
+                for asset_error in self._import_project_documents_from_links(created_project.id, item):
+                    errors.append({"project": project_name, "error": asset_error})
 
                 existing_by_name[key] = created_project
                 created += 1
@@ -153,24 +163,15 @@ class ProjectService:
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-        if image.content_type not in ["image/jpeg", "image/png", "image/jpg"]:
+        payload = image.file.read()
+        image_extension = self._detect_image_extension(payload, image.content_type)
+        if not image_extension:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid image format. Only JPEG and PNG are allowed.",
             )
 
-        if image.content_type == "image/jpeg":
-            image_extension = "jpeg"
-        elif image.content_type == "image/png":
-            image_extension = "png"
-        else:
-            image_extension = "jpg"
-
-        image_path = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.{image_extension}"
-
-        with open(image_path, "wb") as file:
-            file.write(image.file.read())
-
+        self._save_image_bytes(project_id, payload, image.content_type, image_extension)
         return self._map_project_to_full_response(project)
 
     def upload_pdf(self, project_id: int, pdf: UploadFile) -> ProjectResponseFull:
@@ -178,11 +179,14 @@ class ProjectService:
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-        pdf_path = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.pdf"
+        payload = pdf.file.read()
+        if not self._looks_like_pdf(payload, pdf.content_type):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid PDF format.",
+            )
 
-        with open(pdf_path, "wb") as file:
-            file.write(pdf.file.read())
-
+        self._save_pdf_bytes(project_id, payload)
         return self._map_project_to_full_response(project)
 
     def get_project_image(self, project_id: int) -> FileResponse:
@@ -190,9 +194,9 @@ class ProjectService:
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-        image_path_jpeg = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.jpeg"
-        image_path_png = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.png"
-        image_path_jpg = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.jpg"
+        image_path_jpeg = self._get_static_dir() / f"{project_id}.jpeg"
+        image_path_png = self._get_static_dir() / f"{project_id}.png"
+        image_path_jpg = self._get_static_dir() / f"{project_id}.jpg"
 
         if image_path_jpeg.exists():
             response = FileResponse(image_path_jpeg, media_type="image/jpeg")
@@ -214,7 +218,7 @@ class ProjectService:
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-        pdf_path = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.pdf"
+        pdf_path = self._get_static_dir() / f"{project_id}.pdf"
 
         if pdf_path.exists():
             response = FileResponse(pdf_path, media_type="application/pdf")
@@ -228,23 +232,14 @@ class ProjectService:
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-        image_path_jpeg = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.jpeg"
-        image_path_png = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.png"
-        image_path_jpg = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.jpg"
-
-        if image_path_jpeg.exists():
-            image_path_jpeg.unlink()
-        if image_path_png.exists():
-            image_path_png.unlink()
-        if image_path_jpg.exists():
-            image_path_jpg.unlink()
+        self._delete_project_image_files(project_id)
 
     def delete_project_pdf(self, project_id: int) -> None:
         project = self.project_repository.get_by_id(project_id)
         if not project:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-        pdf_path = Path(__file__).resolve().parent.parent / "static" / f"{project_id}.pdf"
+        pdf_path = self._get_static_dir() / f"{project_id}.pdf"
         if pdf_path.exists():
             pdf_path.unlink()
 
@@ -283,3 +278,114 @@ class ProjectService:
         if year < 2016:
             return default
         return year
+
+    def _import_project_documents_from_links(self, project_id: int, item: dict) -> list[str]:
+        errors: list[str] = []
+
+        pdf_url = str(item.get("pdf_url") or "").strip()
+        if pdf_url:
+            try:
+                payload, content_type = self._download_remote_file(pdf_url)
+                if not self._looks_like_pdf(payload, content_type):
+                    raise ValueError("linked PDF is not a valid PDF file")
+                self._save_pdf_bytes(project_id, payload)
+            except Exception as error:  # noqa: BLE001
+                errors.append(f"Failed to import PDF: {error}")
+
+        image_url = str(item.get("image_url") or "").strip()
+        if image_url:
+            try:
+                payload, content_type = self._download_remote_file(image_url)
+                self._save_image_bytes(project_id, payload, content_type)
+            except Exception as error:  # noqa: BLE001
+                errors.append(f"Failed to import image: {error}")
+
+        return errors
+
+    def _download_remote_file(self, source_url: str) -> tuple[bytes, str]:
+        normalized_url = self._normalize_remote_file_url(source_url)
+        request = Request(normalized_url, headers={"User-Agent": "Mozilla/5.0"})
+
+        with urlopen(request, timeout=60) as response:
+            payload = response.read()
+            content_type = response.headers.get_content_type()
+
+        return payload, str(content_type or "").lower()
+
+    def _normalize_remote_file_url(self, source_url: str) -> str:
+        raw_url = str(source_url or "").strip()
+        if not raw_url:
+            return ""
+
+        parts = urlsplit(raw_url)
+        if "drive.google.com" not in parts.netloc.lower():
+            return raw_url
+
+        query = parse_qs(parts.query)
+        file_id = ""
+        if query.get("id"):
+            file_id = str(query["id"][0]).strip()
+
+        if not file_id:
+            match = re.search(r"/file/d/([a-zA-Z0-9_-]+)", parts.path)
+            if match:
+                file_id = match.group(1)
+
+        if file_id:
+            return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+        return raw_url
+
+    def _save_image_bytes(
+        self,
+        project_id: int,
+        payload: bytes,
+        content_type: str | None = None,
+        image_extension: str | None = None,
+    ) -> None:
+        detected_extension = image_extension or self._detect_image_extension(payload, content_type)
+        if not detected_extension:
+            raise ValueError("linked image is not a supported JPEG or PNG file")
+
+        image_path = self._get_static_dir() / f"{project_id}.{detected_extension}"
+        self._delete_project_image_files(project_id)
+        image_path.write_bytes(payload)
+
+    def _save_pdf_bytes(self, project_id: int, payload: bytes) -> None:
+        if not self._looks_like_pdf(payload):
+            raise ValueError("linked PDF is not a valid PDF file")
+
+        pdf_path = self._get_static_dir() / f"{project_id}.pdf"
+        pdf_path.write_bytes(payload)
+
+    def _detect_image_extension(self, payload: bytes, content_type: str | None = None) -> str:
+        if payload.startswith(b"\xff\xd8\xff"):
+            return "jpeg"
+        if payload.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "png"
+
+        normalized_content_type = str(content_type or "").lower()
+        if normalized_content_type == "image/jpeg":
+            return "jpeg"
+        if normalized_content_type == "image/jpg":
+            return "jpg"
+        if normalized_content_type == "image/png":
+            return "png"
+        return ""
+
+    def _looks_like_pdf(self, payload: bytes, content_type: str | None = None) -> bool:
+        if payload.startswith(b"%PDF-"):
+            return True
+        return str(content_type or "").lower() == "application/pdf"
+
+    def _delete_project_image_files(self, project_id: int) -> None:
+        static_dir = self._get_static_dir()
+        for extension in ("jpeg", "png", "jpg"):
+            image_path = static_dir / f"{project_id}.{extension}"
+            if image_path.exists():
+                image_path.unlink()
+
+    def _get_static_dir(self) -> Path:
+        static_dir = Path(__file__).resolve().parent.parent / "static"
+        static_dir.mkdir(parents=True, exist_ok=True)
+        return static_dir
