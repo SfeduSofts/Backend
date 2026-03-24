@@ -4,8 +4,8 @@ from app.config import settings
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
-        host='127.0.0.1',
-        port=8000,
+        host=settings.api_host,
+        port=settings.api_port,
         reload=settings.debug,
         log_level="debug" if settings.debug else "info",
     )
