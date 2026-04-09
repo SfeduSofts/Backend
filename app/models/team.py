@@ -8,7 +8,7 @@ class Team(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
 
     project = relationship("Project", back_populates="teams")
     students = relationship("Student", back_populates="team")

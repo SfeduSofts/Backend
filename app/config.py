@@ -1,9 +1,13 @@
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
+import dotenv
+import os
+
+dotenv.load_dotenv()
 
 class Settings(BaseSettings):
     app_name: str = "Project List"
-    database_url: str = "sqlite:///./test.db"
+    database_url: str = f"postgresql+psycopg2://{os.getenv('password')}:{os.getenv('password')}@{os.getenv('host')}:{os.getenv('port')}/{os.getenv('database')}"
     debug: bool = True
     api_host: str = "0.0.0.0"
     api_port: int = 8000

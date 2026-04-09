@@ -12,7 +12,6 @@ class Student(Base):
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
     role = Column(String(50), nullable=False)
     photo_src = Column(String(255), nullable=True)
-    team_id = Column(String(36), ForeignKey("teams.id"), nullable=False)
 
     team = relationship("Team", back_populates="students")
 
