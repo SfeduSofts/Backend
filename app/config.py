@@ -11,21 +11,8 @@ class Settings(BaseSettings):
     debug: bool = True
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    cors_origins: list[str] = [
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://127.0.0.1:8080",
-        "http://localhost:8080",
-    ]
-    cors_origin_regex: str = (
-        r"^https?://("
-        r"localhost|"
-        r"127(?:\.\d{1,3}){3}|"
-        r"192\.168(?:\.\d{1,3}){2}|"
-        r"10(?:\.\d{1,3}){3}|"
-        r"172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}"
-        r")(?::\d+)?$"
-    )
+    cors_origins: list[str] = ["*"]
+    cors_origin_regex: str = ".*"
     static_dir: str = "static"
     image_dir: str = "static/images"
 
