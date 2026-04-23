@@ -8,7 +8,7 @@ dotenv.load_dotenv()
 class Settings(BaseSettings):
     app_name: str = "Project List"
     database_url: str = f"postgresql+psycopg2://{os.getenv('password')}:{os.getenv('password')}@{os.getenv('host')}:{os.getenv('port')}/{os.getenv('database')}"
-    debug: bool = True
+    debug: bool = False
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     cors_origins: list[str] = ["*"]
